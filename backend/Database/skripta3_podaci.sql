@@ -1,18 +1,18 @@
-
-
-
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
 SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
+SET search_path = public, pg_catalog;
 SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
+BEGIN;
+
+TRUNCATE TABLE public.evidencija, public.upis, public.student, public.nastavnik, public.kolegij, public.vrsta_aktivnosti, public.aktivnost, public.korisnik RESTART IDENTITY CASCADE;
 
 INSERT INTO public.korisnik (id, ime, prezime, email, lozinka_hash, uloga, mora_promijeniti_lozinku, aktivan, kreirano) OVERRIDING SYSTEM VALUE VALUES (1, 'Ana', 'Marić', 'ana.maric@fakultet.hr', '$2a$11$S2McQmZaZnonIJTeW9DfUe6EfsoeAyRa1mnKwxUIGWpeZXwDqu83e', 'student', false, true, '2026-09-24 14:35:15.769724+02');
 INSERT INTO public.korisnik (id, ime, prezime, email, lozinka_hash, uloga, mora_promijeniti_lozinku, aktivan, kreirano) OVERRIDING SYSTEM VALUE VALUES (2, 'Petra', 'Babić', 'petra.babic@fakultet.hr', '$2a$11$KtUUF6ExPHH.7AaXQMTbfueu0VlBHrMU5KCKerwILU2RUmOuKScqW', 'student', false, true, '2026-09-24 14:35:15.769724+02');
@@ -116,6 +116,4 @@ SELECT pg_catalog.setval('public.korisnik_id_seq', 12, true);
 
 SELECT pg_catalog.setval('public.vrsta_aktivnosti_id_seq', 5, true);
 
-
-
-
+COMMIT;

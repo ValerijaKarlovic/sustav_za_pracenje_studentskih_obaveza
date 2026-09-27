@@ -135,7 +135,7 @@ SELECT
     k.ukupno_bodova,
     k.prag_prolaza,
     COALESCE(SUM(e.bodovi), 0)                      AS bodovi,
-    ROUND(COALESCE(SUM(e.bodovi), 0) / k.ukupno_bodova * k.ects, 1) AS ects_ostvareno,
+    0::numeric AS ects_ostvareno,
     COALESCE(SUM(e.bodovi), 0) >= k.ukupno_bodova * k.prag_prolaza / 100.0 AS prolazi
 FROM upis u
 JOIN kolegij k ON k.id = u.kolegij_id

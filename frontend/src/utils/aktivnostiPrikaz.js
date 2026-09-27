@@ -32,15 +32,25 @@ export function zavrsenoOcjenjivanje(aktivnosti, ukupnoBodovaKolegija) {
     && sveAktivnostiOcijenjene(aktivnosti)
 }
 
+/** Položeno = prag bodova + sve obaveze na kolegiju + sve ocijenjeno. */
+export function kolegijJePolozen(prolazi, aktivnosti, ukupnoBodovaKolegija) {
+  return Boolean(prolazi) && zavrsenoOcjenjivanje(aktivnosti, ukupnoBodovaKolegija)
+}
+
+/** ECTS ulazi u ukupno samo kad je kolegij položen. */
+export function ectsOstvarenoZaKolegij(prolazi, ectsKolegija, aktivnosti, ukupnoBodovaKolegija) {
+  return kolegijJePolozen(prolazi, aktivnosti, ukupnoBodovaKolegija) ? Number(ectsKolegija) : 0
+}
+
 export function statusLabelStudenta(prolazi, aktivnosti, maxBodoviKolegija) {
-  if (prolazi) return 'Položeno'
+  if (kolegijJePolozen(prolazi, aktivnosti, maxBodoviKolegija)) return 'Položeno'
   if (zavrsenoOcjenjivanje(aktivnosti, maxBodoviKolegija)) return 'Nije položeno'
   return 'U tijeku'
 }
 
 export function statusLabelNastavnika(bodovi, maxBodovi, pragProlaza, zavrseno = false) {
   const prag = maxBodovi * (pragProlaza / 100)
-  if (bodovi >= prag) return 'Položeno'
+  if (zavrseno && bodovi >= prag) return 'Položeno'
   if (zavrseno) return 'Nije položeno'
   return 'U tijeku'
 }

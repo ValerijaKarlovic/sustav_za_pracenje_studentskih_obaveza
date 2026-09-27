@@ -9,14 +9,26 @@ import {
   segmentiDonutaPoVrstama,
   sortirajVrste,
 } from '@/utils/bodoviPoVrsti'
-import { mapObvezeZaPrikaz, statusLabelStudenta } from '@/utils/aktivnostiPrikaz'
+import { ectsOstvarenoZaKolegij, mapObvezeZaPrikaz, statusLabelStudenta } from '@/utils/aktivnostiPrikaz'
 
 const kolegiji = ref([])
 const aktivnosti = ref([])
 
 const ukupnoBodova = computed(() => kolegiji.value.reduce((s, k) => s + Number(k.bodovi), 0))
 const ukupnoMax = computed(() => kolegiji.value.reduce((s, k) => s + Number(k.maxBodovi), 0))
-const ukupnoEcts = computed(() => kolegiji.value.reduce((s, k) => s + Number(k.ectsOstvareno), 0).toFixed(1))
+function aktivnostiZaKolegij(nazivKolegija) {
+  return aktivnosti.value.filter(a => a.kolegij === nazivKolegija)
+}
+
+const ukupnoEcts = computed(() =>
+  kolegiji.value
+    .reduce(
+      (s, k) =>
+        s + ectsOstvarenoZaKolegij(k.prolazi, k.ects, aktivnostiZaKolegij(k.naziv), k.maxBodovi),
+      0,
+    )
+    .toFixed(1),
+)
 const ukupnoEctsMax = computed(() => kolegiji.value.reduce((s, k) => s + k.ects, 0))
 
 const upisaniKolegiji = computed(() => new Set(kolegiji.value.map(k => k.naziv)))
@@ -66,7 +78,7 @@ async function ucitajKolegije() {
     kolegijId: k.kolegijId,
     naziv: k.kolegij,
     ects: k.ects,
-    ectsOstvareno: Number(k.ectsOstvareno),
+    ectsOstvareno: 0,
     bodovi: Number(k.bodovi),
     maxBodovi: Number(k.ukupnoBodova),
     prolazi: k.prolazi,
