@@ -14,7 +14,7 @@ BEGIN;
 
 TRUNCATE TABLE public.evidencija, public.upis, public.student, public.nastavnik, public.kolegij, public.vrsta_aktivnosti, public.aktivnost, public.korisnik RESTART IDENTITY CASCADE;
 
--- Početna lozinka za sve: test123. mora_promijeniti_lozinku = true (obavezna promjena pri prvoj prijavi).
+
 INSERT INTO public.korisnik (id, ime, prezime, email, lozinka_hash, uloga, mora_promijeniti_lozinku, aktivan, kreirano) OVERRIDING SYSTEM VALUE VALUES (1, 'Ana', 'Marić', 'ana.maric@fakultet.hr', '$2a$11$S2McQmZaZnonIJTeW9DfUe6EfsoeAyRa1mnKwxUIGWpeZXwDqu83e', 'student', true, true, '2026-09-24 14:35:15.769724+02');
 INSERT INTO public.korisnik (id, ime, prezime, email, lozinka_hash, uloga, mora_promijeniti_lozinku, aktivan, kreirano) OVERRIDING SYSTEM VALUE VALUES (2, 'Petra', 'Babić', 'petra.babic@fakultet.hr', '$2a$11$KtUUF6ExPHH.7AaXQMTbfueu0VlBHrMU5KCKerwILU2RUmOuKScqW', 'student', true, true, '2026-09-24 14:35:15.769724+02');
 INSERT INTO public.korisnik (id, ime, prezime, email, lozinka_hash, uloga, mora_promijeniti_lozinku, aktivan, kreirano) OVERRIDING SYSTEM VALUE VALUES (3, 'Luka', 'Perić', 'luka.peric@fakultet.hr', '$2a$11$1EaKmfFgNI7PrbBuUdFQ.e8TXybW88bJl0NXahO1YBLHaK580bQte', 'student', true, true, '2026-09-24 14:35:15.769724+02');
