@@ -2,19 +2,29 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import api from '@/api/client'
 import StatCard from '@/components/shared/StatCard.vue'
+import LineChart from '@/components/shared/LineChart.vue'
 import { formatBodovi } from '@/utils/formatBodovi'
 
 const kolegiji = ref([])
 const odabraniKolegij = ref('')
+const razdobljeDana = ref('')
 const statistika = ref({ studenata: 0, nastavnika: 0, kolegija: 0, aktivnosti: 0, evidencija: 0, aktivnostiOvajMjesec: 0, novihAktivnosti: 0, novihKorisnika: 0 })
 const nastavnikKolegija = ref('')
-const dashboard = ref({ statistika: {}, najaktivniji: [], usporedba: [], poVrsti: [], bodoviPoKolegiju: [] })
+const dashboard = ref({ statistika: {}, najaktivniji: [], usporedba: [], poVrsti: [], bodoviPoKolegiju: [], angažman: [] })
 const boje = ['#2f5fd1', '#1a7f37', '#d99a1f', '#c62828', '#7c3aed']
 
 const prikazKolegija = computed(() => Boolean(odabraniKolegij.value))
 
 const najaktivniji = computed(() => dashboard.value.najaktivniji || [])
 const usporedba = computed(() => dashboard.value.usporedba || [])
+
+const angažmanGraf = computed(() => {
+  const lista = dashboard.value.angažman || []
+  return {
+    labels: lista.map(x => x.label),
+    points: lista.map(x => Number(x.bodovi) || 0),
+  }
+})
 
 const prosjekBodovaPoKolegiju = computed(() =>
   (dashboard.value.bodoviPoKolegiju || []).map(k => {
@@ -63,7 +73,9 @@ async function ucitajPregled() {
     statistika.value = data
     return
   }
-  const { data } = await api.get(`/admin/dashboard?kolegijId=${odabraniKolegij.value}`)
+  const params = new URLSearchParams({ kolegijId: String(odabraniKolegij.value) })
+  if (razdobljeDana.value) params.set('dana', razdobljeDana.value)
+  const { data } = await api.get(`/admin/dashboard?${params}`)
   nastavnikKolegija.value = data.nastavnik || ''
   dashboard.value = data.dashboard || {}
 }
@@ -74,6 +86,9 @@ onMounted(async () => {
 })
 
 watch(odabraniKolegij, () => ucitajPregled())
+watch(razdobljeDana, () => {
+  if (odabraniKolegij.value) ucitajPregled()
+})
 </script>
 
 <template>
@@ -91,6 +106,11 @@ watch(odabraniKolegij, () => ucitajPregled())
       <select v-model="odabraniKolegij" aria-label="Kolegij">
         <option value="">Svi kolegiji (sistem)</option>
         <option v-for="k in kolegiji" :key="k.id" :value="k.id">{{ k.naziv }}</option>
+      </select>
+      <select v-if="prikazKolegija" v-model="razdobljeDana" aria-label="Razdoblje">
+        <option value="">Cijelo razdoblje</option>
+        <option value="7">Zadnjih 7 dana</option>
+        <option value="30">Zadnjih 30 dana</option>
       </select>
     </div>
 
@@ -156,6 +176,16 @@ watch(odabraniKolegij, () => ucitajPregled())
         </div>
       </div>
 
+      <div class="section-title">Prosjek bodova po mjesecu (angažman)</div>
+      <div class="card">
+        <LineChart
+          v-if="angažmanGraf.labels.length"
+          :points="angažmanGraf.points"
+          :labels="angažmanGraf.labels"
+        />
+        <p v-else class="chart-empty">Nema aktivnosti s datumom u odabranom razdoblju.</p>
+      </div>
+
       <div class="section-title">Raspodjela aktivnosti po vrsti</div>
       <div class="card">
         <div class="pie-wrap">
@@ -171,3 +201,11 @@ watch(odabraniKolegij, () => ucitajPregled())
     </template>
   </main>
 </template>
+
+<style scoped>
+.chart-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+</style>

@@ -20,7 +20,7 @@ async function ucitaj() {
 
 function otvoriDodavanje() {
   editingId.value = null
-  forma.value = { ime: '', prezime: '', email: '', uloga: 'student', brojIndeksa: '', lozinka: 'test123' }
+  forma.value = { ime: '', prezime: '', email: '', uloga: 'student', brojIndeksa: '', lozinka: '' }
   showModal.value = true
 }
 
@@ -42,12 +42,13 @@ function payloadZaSpremanje() {
     ime: forma.value.ime,
     prezime: forma.value.prezime,
     email: forma.value.email,
+    uloga: forma.value.uloga,
     lozinka: forma.value.lozinka || undefined,
   }
   if (forma.value.uloga === 'student') {
     return { ...osnova, brojIndeksa: forma.value.brojIndeksa.trim() }
   }
-  return osnova
+  return { ...osnova, brojIndeksa: null }
 }
 
 async function spremi() {
@@ -62,10 +63,15 @@ async function spremi() {
       if (!body.lozinka) delete body.lozinka
       await api.put(`/admin/korisnici/${editingId.value}`, body)
     } else {
+      const lozinka = forma.value.lozinka.trim()
+      if (lozinka.length < 6) {
+        window.alert('Početna lozinka mora imati najmanje 6 znakova.')
+        return
+      }
       await api.post('/admin/korisnici', {
         ...payloadZaSpremanje(),
         uloga: forma.value.uloga,
-        lozinka: forma.value.lozinka || 'test123',
+        lozinka,
       })
     }
     showModal.value = false
@@ -102,13 +108,30 @@ onMounted(ucitaj)
       <label>Ime</label><input type="text" v-model="forma.ime" />
       <label>Prezime</label><input type="text" v-model="forma.prezime" />
       <label>Email</label><input type="email" v-model="forma.email" />
-      <label>Uloga</label><select v-model="forma.uloga" style="width:100%; margin-bottom:16px;"><option value="student">Student</option><option value="nastavnik">Nastavnik</option><option value="admin">Administrator</option></select>
+      <label>Uloga</label>
+      <select v-model="forma.uloga" style="width:100%; margin-bottom:16px;">
+        <option value="student">Student</option>
+        <option value="nastavnik">Nastavnik</option>
+        <option value="admin">Administrator</option>
+      </select>
+      <p v-if="editingId" class="field-hint">
+        Promjena uloge uklanja stare podatke uloge (npr. upisi studenta). Nastavnik s kolegijima se ne može pretvoriti dok kolegiji nisu prebačeni.
+      </p>
       <template v-if="forma.uloga === 'student'">
         <label>Broj indeksa</label>
         <input type="text" v-model="forma.brojIndeksa" placeholder="npr. 0123456789" style="margin-bottom:16px;" />
       </template>
-      <label>Lozinka {{ editingId ? '(ostavi prazno za nepromijenjenu)' : '' }}</label><input type="text" v-model="forma.lozinka" />
+      <label>Lozinka {{ editingId ? '(ostavi prazno za nepromijenjenu)' : '(korisnik mora promijeniti pri prvoj prijavi)' }}</label>
+      <input type="password" v-model="forma.lozinka" autocomplete="new-password" />
       <div class="modal-actions"><button class="small-primary" @click="spremi">Spremi</button></div>
     </Modal>
   </main>
 </template>
+
+<style scoped>
+.field-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: -8px 0 12px;
+}
+</style>

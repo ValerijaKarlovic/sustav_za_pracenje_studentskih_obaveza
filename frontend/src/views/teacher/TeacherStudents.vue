@@ -19,7 +19,8 @@ const showEnrollModal = ref(false)
 const odabraniKolegijNaziv = computed(() => kolegiji.value.find(k => k.id === odabraniKolegij.value)?.naziv || '')
 
 function statusStudenta(student) {
-  return statusLabelNastavnika(student.bodovi, student.max, student.pragProlaza, student.zavrsenoOcjenjivanje)
+  return student.statusPrikaz
+    ?? statusLabelNastavnika(student.bodovi, student.max, student.pragProlaza, student.zavrsenoOcjenjivanje)
 }
 
 const prikazaniStudenti = computed(() => {
@@ -58,6 +59,7 @@ async function ucitajStudente() {
     max: Number(kolegij?.ukupnoBodova || 0),
     pragProlaza: Number(kolegij?.pragProlaza || 55),
     zavrsenoOcjenjivanje: Boolean(s.zavrsenoOcjenjivanje),
+    statusPrikaz: s.statusPrikaz,
   }))
 }
 
@@ -82,12 +84,8 @@ async function otvoriKarton(student) {
     bodovi,
     maxBodovi,
     pragProlaza,
-    statusLabel: statusLabelNastavnika(
-      bodovi,
-      maxBodovi,
-      pragProlaza,
-      data.zavrsenoOcjenjivanje,
-    ),
+    statusLabel: data.statusPrikaz
+      ?? statusLabelNastavnika(bodovi, maxBodovi, pragProlaza, data.zavrsenoOcjenjivanje),
     aktivnostiKolegija,
   }
 }

@@ -42,5 +42,10 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('user')
       localStorage.removeItem('token')
     },
+    oznaciLozinkuPromijenjenu() {
+      if (!this.user) return
+      this.user = { ...this.user, moraPromijenitiLozinku: false }
+      localStorage.setItem('user', JSON.stringify(this.user))
+    },
   },
 })

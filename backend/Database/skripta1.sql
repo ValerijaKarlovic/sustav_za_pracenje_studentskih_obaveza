@@ -125,22 +125,25 @@ CREATE TRIGGER trg_evidencija_bodovi
 --  VIEWOVI za dashboarde
 
 
--- Student dashboard
+-- Zbroj bodova po studentu/kolegiju (ECTS i status računa aplikacija u KolegijRezultatService)
 CREATE VIEW v_bodovi_student_kolegij AS
 SELECT
     u.student_id,
-    k.id                                            AS kolegij_id,
-    k.naziv                                         AS kolegij,
+    k.id                       AS kolegij_id,
+    k.naziv                    AS kolegij,
     k.ects,
     k.ukupno_bodova,
     k.prag_prolaza,
-    COALESCE(SUM(e.bodovi), 0)                      AS bodovi,
-    0::numeric AS ects_ostvareno,
-    COALESCE(SUM(e.bodovi), 0) >= k.ukupno_bodova * k.prag_prolaza / 100.0 AS prolazi
+    COALESCE(ev_sum.bodovi, 0) AS bodovi
 FROM upis u
 JOIN kolegij k ON k.id = u.kolegij_id
-LEFT JOIN evidencija e ON e.student_id = u.student_id AND e.kolegij_id = u.kolegij_id
-GROUP BY u.student_id, k.id;
+LEFT JOIN LATERAL (
+    SELECT SUM(e.bodovi) AS bodovi
+    FROM evidencija e
+    WHERE e.student_id = u.student_id
+      AND e.kolegij_id = u.kolegij_id
+      AND e.status <> 'ceka_se'
+) ev_sum ON true;
 
 
 CREATE VIEW v_napredak_student_kolegij AS
@@ -154,7 +157,8 @@ SELECT
     ) AS kumulativni_bodovi
 FROM evidencija e
 JOIN aktivnost a ON a.id = e.aktivnost_id
-WHERE e.bodovi IS NOT NULL;
+WHERE e.bodovi IS NOT NULL
+    AND e.status <> 'ceka_se';
 
 
 

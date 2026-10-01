@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services;
 
-public class KolegijPregledService(AppDbContext db)
+public class KolegijPregledService(AppDbContext db, KolegijRezultatService kolegijRezultat)
 {
     public async Task<bool> KolegijJeUOpseguAsync(int kolegijId, IReadOnlyCollection<int> opsegKolegijIds)
         => opsegKolegijIds.Contains(kolegijId);
@@ -35,22 +35,44 @@ public class KolegijPregledService(AppDbContext db)
         if (pocetak.HasValue)
             aktivnosti = aktivnosti.Where(x => !x.Datum.HasValue || x.Datum >= pocetak).ToList();
 
+        var aktivnostIdsUFiltriranom = aktivnosti.Select(x => x.Id).ToHashSet();
+        if (pocetak.HasValue)
+            evidencije = evidencije.Where(e => aktivnostIdsUFiltriranom.Contains(e.AktivnostId)).ToList();
+
+        var aktivnostiNaKolegijima = aktivnosti
+            .Select(a => new { a.Id, a.KolegijId, a.MaxBodovi })
+            .ToList();
+
         var comparison = upisi.GroupBy(x => x.StudentId).Select(group =>
         {
-            var studentEvidencije = evidencije.Where(x => x.StudentId == group.Key).ToList();
-            var studentKolegiji = kolegiji.Where(x => group.Any(upis => upis.KolegijId == x.Id));
-            var bodovi = studentEvidencije.Sum(x => x.Bodovi ?? 0);
-            var ects = studentKolegiji.Where(k => bodovi >= k.UkupnoBodova * k.PragProlaza / 100m).Sum(k => k.Ects);
-            var odradeneAktivnosti = studentEvidencije.Count(x => x.Status == "odradeno");
-            return new { studentId = group.Key, ime = studentNames.GetValueOrDefault(group.Key, ""), bodovi, ects, aktivnosti = odradeneAktivnosti };
+            var studentId = group.Key;
+            var kolegijIdsStudenta = group.Select(u => u.KolegijId).Where(ids.Contains).Distinct().ToList();
+            decimal bodovi = 0;
+            decimal ects = 0;
+            var ocijenjeneAktivnosti = 0;
+
+            foreach (var kid in kolegijIdsStudenta)
+            {
+                var k = kolegiji.Single(x => x.Id == kid);
+                var akts = aktivnostiNaKolegijima.Where(a => a.KolegijId == kid).ToList();
+                var evZaKolegij = evidencije.Where(x => x.StudentId == studentId && x.KolegijId == kid).ToList();
+                var stavke = akts.Select(a =>
+                {
+                    var ev = evZaKolegij.FirstOrDefault(e => e.AktivnostId == a.Id);
+                    return (a.MaxBodovi, ev?.Status ?? "ceka_se", ev?.Bodovi);
+                }).ToList();
+                var rezKolegij = kolegijRezultat.Izracunaj(k, stavke);
+                bodovi += rezKolegij.Bodovi;
+                ects += rezKolegij.EctsOstvareno;
+                ocijenjeneAktivnosti += stavke.Count(s => s.Item2 != "ceka_se");
+            }
+
+            return new { studentId, ime = studentNames.GetValueOrDefault(studentId, ""), bodovi, ects, aktivnosti = ocijenjeneAktivnosti };
         }).OrderByDescending(x => x.bodovi).ToList();
 
-        var mjeseci = Enumerable.Range(0, 5).Select(offset => DateTime.Today.AddMonths(-4 + offset)).ToList();
-        var angažman = mjeseci.Select(mjesec => new
-        {
-            label = mjesec.ToString("MMM", new System.Globalization.CultureInfo("hr-HR")),
-            bodovi = evidencije.Where(e => e.Bodovi.HasValue && aktivnosti.Any(a => a.Id == e.AktivnostId && a.Datum?.Month == mjesec.Month && a.Datum?.Year == mjesec.Year)).Select(e => e.Bodovi!.Value).DefaultIfEmpty().Average()
-        });
+        var angažman = IzracunajAngazmanPoMjesecima(
+            aktivnosti.Select(a => (AktivnostId: a.Id, a.Datum)).ToList(),
+            evidencije.Select(e => (e.AktivnostId, e.Status, e.Bodovi)).ToList());
 
         var poVrsti = aktivnosti.GroupBy(x => x.vrsta).Select(group => new { naziv = group.Key, broj = group.Count() });
         var bodoviPoKolegiju = kolegiji
@@ -59,14 +81,22 @@ public class KolegijPregledService(AppDbContext db)
             .Select(k =>
             {
                 var brojStudenata = upisi.Where(u => u.KolegijId == k.Id).Select(u => u.StudentId).Distinct().Count();
-                var ukupnoBodova = evidencije.Where(e => e.KolegijId == k.Id).Sum(e => e.Bodovi ?? 0);
+                var ukupnoBodova = evidencije
+                    .Where(e => e.KolegijId == k.Id && e.Status != "ceka_se")
+                    .Sum(e => e.Bodovi ?? 0);
                 return new { k.Id, naziv = k.Naziv, ukupnoBodova, brojStudenata };
             }).ToList();
 
         return new
         {
             kolegiji = kolegiji.Where(x => ids.Contains(x.Id)).Select(x => new { x.Id, x.Naziv }),
-            statistika = new { kolegiji = ids.Count, studenata = upisi.Select(x => x.StudentId).Distinct().Count(), aktivnosti = aktivnosti.Count(x => x.Datum?.Month == DateTime.Today.Month) },
+            statistika = new
+            {
+                kolegiji = ids.Count,
+                studenata = upisi.Select(x => x.StudentId).Distinct().Count(),
+                aktivnosti = aktivnosti.Count(x =>
+                    x.Datum?.Month == DateTime.Today.Month && x.Datum?.Year == DateTime.Today.Year)
+            },
             najaktivniji = comparison.Take(5),
             usporedba = comparison,
             angažman,
@@ -91,25 +121,39 @@ public class KolegijPregledService(AppDbContext db)
                                 ime = korisnik.Ime,
                                 prezime = korisnik.Prezime,
                                 brojIndeksa = student.BrojIndeksa,
-                                bodovi = evidencije.Sum(x => x.Bodovi ?? 0)
+                                bodovi = evidencije
+                                    .Where(x => x.Status != "ceka_se")
+                                    .Sum(x => x.Bodovi ?? 0)
                             }).ToListAsync();
 
         var kolegij = await db.Kolegiji.AsNoTracking().SingleAsync(x => x.Id == kolegijId);
-        var sumaMaxAktivnosti = await db.Aktivnosti.AsNoTracking()
+        var aktivnostiKolegija = await db.Aktivnosti.AsNoTracking()
             .Where(a => a.KolegijId == kolegijId)
-            .SumAsync(a => a.MaxBodovi);
-        var obavezeDefinirane = KolegijStatusHelper.SveObavezeDefiniraneNaKolegiju(sumaMaxAktivnosti, kolegij.UkupnoBodova);
+            .ToListAsync();
+        var studentIds = roster.Select(x => x.studentId).ToList();
+        var evidencijeKolegija = await db.Evidencije.AsNoTracking()
+            .Where(e => e.KolegijId == kolegijId && studentIds.Contains(e.StudentId))
+            .ToListAsync();
 
-        var ocijenjenoPoStudentu = await SveAktivnostiOcijenjenePoStudentimaAsync(kolegijId, roster.Select(x => x.studentId).ToList());
-
-        return roster.Select(s => new
+        return roster.Select(s =>
         {
-            s.studentId,
-            s.ime,
-            s.prezime,
-            s.brojIndeksa,
-            s.bodovi,
-            zavrsenoOcjenjivanje = obavezeDefinirane && ocijenjenoPoStudentu.GetValueOrDefault(s.studentId, false)
+            var stavke = aktivnostiKolegija.Select(a =>
+            {
+                var ev = evidencijeKolegija.FirstOrDefault(e => e.StudentId == s.studentId && e.AktivnostId == a.Id);
+                return (a.MaxBodovi, ev?.Status ?? "ceka_se", ev?.Bodovi);
+            }).ToList();
+            var rez = kolegijRezultat.Izracunaj(kolegij, stavke);
+            return new
+            {
+                s.studentId,
+                s.ime,
+                s.prezime,
+                s.brojIndeksa,
+                bodovi = rez.Bodovi,
+                zavrsenoOcjenjivanje = rez.ZavrsenoOcjenjivanje,
+                polozen = rez.Polozen,
+                statusPrikaz = rez.StatusPrikaz,
+            };
         }).ToList();
     }
 
@@ -167,23 +211,19 @@ public class KolegijPregledService(AppDbContext db)
                                 select new AktivnostOdgovor(a.Id, a.Naziv, a.Datum, a.MaxBodovi,
                                     e == null ? "ceka_se" : e.Status, e == null ? null : e.Bodovi, v.Naziv, a.Opis)).ToListAsync();
 
-        var bodovi = aktivnosti.Sum(a => a.Bodovi ?? 0);
-        var prag = kolegij.UkupnoBodova * kolegij.PragProlaza / 100m;
-        var prolazi = bodovi >= prag;
-        var sumaMaxAktivnosti = aktivnosti.Sum(a => a.MaxBodovi);
-        var zavrsenoOcjenjivanje = KolegijStatusHelper.ZavrsenoOcjenjivanje(
-            sumaMaxAktivnosti,
-            kolegij.UkupnoBodova,
-            aktivnosti.Select(a => a.Status).ToList());
+        var rez = kolegijRezultat.Izracunaj(kolegij, aktivnosti);
 
         return new
         {
             student = new { student.Ime, student.Prezime, student.BrojIndeksa },
             kolegij = new { kolegij.Id, naziv = kolegij.Naziv, kolegij.Ects, ukupnoBodova = kolegij.UkupnoBodova, pragProlaza = kolegij.PragProlaza },
-            bodovi,
-            maxBodovi = kolegij.UkupnoBodova,
-            prolazi,
-            zavrsenoOcjenjivanje,
+            bodovi = rez.Bodovi,
+            maxBodovi = rez.MaxBodovi,
+            prolaziPrag = rez.ProlaziPrag,
+            zavrsenoOcjenjivanje = rez.ZavrsenoOcjenjivanje,
+            polozen = rez.Polozen,
+            ectsOstvareno = rez.EctsOstvareno,
+            statusPrikaz = rez.StatusPrikaz,
             aktivnosti
         };
     }
@@ -202,6 +242,7 @@ public class KolegijPregledService(AppDbContext db)
     public async Task<bool> UpisiStudentaAsync(int studentId, int kolegijId, IReadOnlyCollection<int> opsegKolegijIds)
     {
         if (!opsegKolegijIds.Contains(kolegijId)) return false;
+        if (!await db.Studenti.AnyAsync(x => x.KorisnikId == studentId)) return false;
         if (await db.Upisi.AnyAsync(x => x.StudentId == studentId && x.KolegijId == kolegijId)) return true;
         db.Upisi.Add(new Upis { StudentId = studentId, KolegijId = kolegijId });
         await db.SaveChangesAsync();
@@ -223,4 +264,40 @@ public class KolegijPregledService(AppDbContext db)
 
     public async Task<HashSet<int>> KolegijIdsZaNastavnikaAsync(int nastavnikId)
         => (await db.Kolegiji.Where(x => x.NastavnikId == nastavnikId).Select(x => x.Id).ToListAsync()).ToHashSet();
+
+    /// <summary>
+    /// Mjeseci od prvog do zadnjeg s barem jednom aktivnošću (datum), uključujući prazne mjeseci između.
+    /// </summary>
+    private static List<object> IzracunajAngazmanPoMjesecima(
+        IReadOnlyList<(int AktivnostId, DateOnly? Datum)> aktivnosti,
+        IReadOnlyList<(int AktivnostId, string Status, decimal? Bodovi)> evidencije)
+    {
+        var datumi = aktivnosti.Where(a => a.Datum.HasValue).Select(a => a.Datum!.Value).ToList();
+        if (datumi.Count == 0) return [];
+
+        var minDatum = datumi.Min();
+        var maxDatum = datumi.Max();
+        var min = new DateOnly(minDatum.Year, minDatum.Month, 1);
+        var max = new DateOnly(maxDatum.Year, maxDatum.Month, 1);
+        var datumPoAktivnosti = aktivnosti.ToDictionary(a => a.AktivnostId, a => a.Datum);
+
+        var hr = new System.Globalization.CultureInfo("hr-HR");
+        var viseGodina = min.Year != max.Year;
+        var rezultat = new List<object>();
+
+        for (var m = min; m <= max; m = m.AddMonths(1))
+        {
+            var ocjene = evidencije
+                .Where(e => e.Status != "ceka_se" && e.Bodovi.HasValue)
+                .Where(e => datumPoAktivnosti.TryGetValue(e.AktivnostId, out var d) && d.HasValue
+                            && d.Value.Year == m.Year && d.Value.Month == m.Month)
+                .Select(e => e.Bodovi!.Value)
+                .ToList();
+            var prosjek = ocjene.Count > 0 ? ocjene.Average() : 0m;
+            var label = viseGodina ? m.ToString("MMM yyyy", hr) : m.ToString("MMM", hr);
+            rezultat.Add(new { label, bodovi = prosjek });
+        }
+
+        return rezultat;
+    }
 }

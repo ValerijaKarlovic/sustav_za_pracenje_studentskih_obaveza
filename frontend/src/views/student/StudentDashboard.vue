@@ -2,17 +2,49 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { onBeforeRouteUpdate } from 'vue-router'
 import api from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import StatCard from '@/components/shared/StatCard.vue'
+import LineChart from '@/components/shared/LineChart.vue'
 import CourseProgressModal from '@/components/shared/CourseProgressModal.vue'
 import {
   donutGradient,
   segmentiDonutaPoVrstama,
   sortirajVrste,
 } from '@/utils/bodoviPoVrsti'
-import { ectsOstvarenoZaKolegij, mapObvezeZaPrikaz, statusLabelStudenta } from '@/utils/aktivnostiPrikaz'
+import { mapObvezeZaPrikaz } from '@/utils/aktivnostiPrikaz'
 
+const auth = useAuthStore()
 const kolegiji = ref([])
 const aktivnosti = ref([])
+const napredak = ref([])
+const kolegijZaGraf = ref('')
+
+const pozdrav = computed(() => {
+  const ime = auth.user?.ime || ''
+  return ime ? `Dobrodošli, ${ime}` : 'Dashboard'
+})
+
+const napredakFiltriran = computed(() => {
+  if (!kolegijZaGraf.value) return []
+  const kid = Number(kolegijZaGraf.value)
+  return napredak.value.filter(x => x.kolegijId === kid)
+})
+
+const grafBodovi = computed(() =>
+  napredakFiltriran.value.map(x => Number(x.kumulativniBodovi)),
+)
+
+const grafLabele = computed(() =>
+  napredakFiltriran.value.map(x =>
+    x.datum ? new Date(x.datum).toLocaleDateString('hr-HR', { day: 'numeric', month: 'short' }) : '',
+  ),
+)
+
+const pragProlazaZaGraf = computed(() => {
+  const k = kolegiji.value.find(x => String(x.kolegijId) === String(kolegijZaGraf.value))
+  if (!k) return null
+  return Math.round(Number(k.maxBodovi) * (k.pragProlaza / 100))
+})
 
 const ukupnoBodova = computed(() => kolegiji.value.reduce((s, k) => s + Number(k.bodovi), 0))
 const ukupnoMax = computed(() => kolegiji.value.reduce((s, k) => s + Number(k.maxBodovi), 0))
@@ -21,13 +53,7 @@ function aktivnostiZaKolegij(nazivKolegija) {
 }
 
 const ukupnoEcts = computed(() =>
-  kolegiji.value
-    .reduce(
-      (s, k) =>
-        s + ectsOstvarenoZaKolegij(k.prolazi, k.ects, aktivnostiZaKolegij(k.naziv), k.maxBodovi),
-      0,
-    )
-    .toFixed(1),
+  kolegiji.value.reduce((s, k) => s + Number(k.ectsOstvareno ?? 0), 0).toFixed(1),
 )
 const ukupnoEctsMax = computed(() => kolegiji.value.reduce((s, k) => s + k.ects, 0))
 
@@ -76,18 +102,25 @@ async function ucitajKolegije() {
   const { data } = await api.get('/student/kolegiji')
   kolegiji.value = data.map(k => ({
     kolegijId: k.kolegijId,
-    naziv: k.kolegij,
+    naziv: k.naziv ?? k.kolegij,
     ects: k.ects,
-    ectsOstvareno: 0,
+    ectsOstvareno: Number(k.ectsOstvareno ?? 0),
     bodovi: Number(k.bodovi),
     maxBodovi: Number(k.ukupnoBodova),
-    prolazi: k.prolazi,
+    pragProlaza: Number(k.pragProlaza ?? 60),
+    polozen: Boolean(k.polozen),
+    statusPrikaz: k.statusPrikaz ?? 'U tijeku',
     obveze: [],
   }))
 }
 
+async function ucitajStatistiku() {
+  const { data } = await api.get('/student/statistika')
+  napredak.value = data
+}
+
 async function ucitajDashboard() {
-  await Promise.all([ucitajKolegije(), ucitajAktivnosti()])
+  await Promise.all([ucitajKolegije(), ucitajAktivnosti(), ucitajStatistiku()])
 }
 
 async function openCourse(k) {
@@ -101,7 +134,7 @@ async function openCourse(k) {
     ...osvjezeni,
     bodovi: Number(data.bodovi ?? osvjezeni.bodovi),
     maxBodovi: Number(data.maxBodovi ?? osvjezeni.maxBodovi),
-    prolazi: data.prolazi ?? osvjezeni.prolazi,
+    statusPrikaz: data.statusPrikaz ?? osvjezeni.statusPrikaz ?? 'U tijeku',
     nastavnik: data.nastavnik ?? '',
     aktivnostiKolegija: obvezeKolegija,
     obveze: mapObvezeZaPrikaz(obvezeKolegija),
@@ -136,13 +169,19 @@ onBeforeRouteUpdate(() => {
   osvjeziPodatke()
 })
 
+watch(kolegiji, (list) => {
+  if (list.length && !kolegijZaGraf.value) {
+    kolegijZaGraf.value = String(list[0].kolegijId)
+  }
+}, { immediate: true })
+
 watch(aktivnosti, () => {
   if (!selectedCourse.value) return
   const k = kolegiji.value.find(x => x.kolegijId === selectedCourse.value.kolegijId)
   const zaKolegij = aktivnosti.value.filter(a => a.kolegij === selectedCourse.value.naziv)
   selectedCourse.value = {
     ...selectedCourse.value,
-    ...(k ? { bodovi: k.bodovi, maxBodovi: k.maxBodovi, prolazi: k.prolazi } : {}),
+    ...(k ? { bodovi: k.bodovi, maxBodovi: k.maxBodovi, statusPrikaz: k.statusPrikaz } : {}),
     aktivnostiKolegija: zaKolegij,
     obveze: mapObvezeZaPrikaz(zaKolegij),
   }
@@ -157,12 +196,26 @@ watch(aktivnosti, () => {
   </nav>
 
   <main class="page-content">
-    <h2 class="page-title">Dobrodošla, Ana</h2>
+    <h2 class="page-title">{{ pozdrav }}</h2>
 
     <div class="stats-row">
       <StatCard label="Ukupno bodova">{{ ukupnoBodova }} <span class="value-of">/ {{ ukupnoMax }}</span></StatCard>
       <StatCard label="Ukupno ECTS">{{ ukupnoEcts }} <span class="value-of">/ {{ ukupnoEctsMax }}</span></StatCard>
       <StatCard label="Odrađeno ovaj mjesec" :value="odradjenoOvajMjesec" />
+    </div>
+
+    <div class="section-title row-between" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+      <span>Napredak bodova kroz vrijeme</span>
+      <select v-model="kolegijZaGraf" style="max-width: 240px;">
+        <option v-for="k in kolegiji" :key="k.kolegijId" :value="k.kolegijId">{{ k.naziv }}</option>
+      </select>
+    </div>
+    <div class="card">
+      <p v-if="pragProlazaZaGraf != null" class="chart-hint">
+        Prag prolaza: {{ pragProlazaZaGraf }} bodova
+      </p>
+      <LineChart v-if="grafBodovi.length" :points="grafBodovi" :labels="grafLabele" />
+      <p v-else class="chart-empty">Nema ocijenjenih aktivnosti za prikaz napretka.</p>
     </div>
 
     <div class="section-title">Bodovi po kolegiju</div>
@@ -198,11 +251,7 @@ watch(aktivnosti, () => {
       :subtitle="selectedCourse.nastavnik ? `Nastavnik: ${selectedCourse.nastavnik}` : 'Pregled obaveza i napretka'"
       :bodovi="selectedCourse.bodovi"
       :max-bodovi="selectedCourse.maxBodovi"
-      :status-label="statusLabelStudenta(
-        selectedCourse.prolazi,
-        selectedCourse.aktivnostiKolegija,
-        selectedCourse.maxBodovi,
-      )"
+      :status-label="selectedCourse.statusPrikaz"
       :aktivnosti-kolegija="selectedCourse.aktivnostiKolegija"
       @close="selectedCourse = null"
     />
@@ -210,8 +259,9 @@ watch(aktivnosti, () => {
 </template>
 
 <style scoped>
-.chart-empty {
-  margin: 0;
+.chart-empty,
+.chart-hint {
+  margin: 0 0 8px;
   color: var(--muted);
   font-size: 13px;
 }

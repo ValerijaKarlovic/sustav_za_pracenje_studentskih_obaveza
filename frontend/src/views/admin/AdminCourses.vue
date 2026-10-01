@@ -23,6 +23,7 @@ const rosterModalSubtitle = computed(() =>
 )
 
 function statusStudenta(student) {
+  if (student.statusPrikaz) return student.statusPrikaz
   const k = rosterKolegij.value
   if (!k) return ''
   return statusLabelNastavnika(
@@ -50,6 +51,7 @@ async function ucitajRoster() {
     max: Number(rosterKolegij.value.ukupnoBodova),
     pragProlaza: Number(rosterKolegij.value.pragProlaza),
     zavrsenoOcjenjivanje: Boolean(s.zavrsenoOcjenjivanje),
+    statusPrikaz: s.statusPrikaz,
   }))
 }
 
@@ -119,12 +121,8 @@ async function otvoriKarton(student) {
     courseName: data.kolegij?.naziv || rosterKolegij.value.naziv,
     bodovi,
     maxBodovi,
-    statusLabel: statusLabelNastavnika(
-      bodovi,
-      maxBodovi,
-      pragProlaza,
-      data.zavrsenoOcjenjivanje,
-    ),
+    statusLabel: data.statusPrikaz
+      ?? statusLabelNastavnika(bodovi, maxBodovi, pragProlaza, data.zavrsenoOcjenjivanje),
     aktivnostiKolegija,
   }
 }

@@ -15,7 +15,7 @@ onMounted(async () => {
     api.get('/student/kolegiji'),
   ])
   const { data } = aktivnostiOdgovor
-  kolegiji.value = kolegijiOdgovor.data.map(k => k.kolegij)
+  kolegiji.value = kolegijiOdgovor.data.map(k => k.naziv ?? k.kolegij)
   aktivnosti.value = data.map(a => ({
     ...a,
     datumRaw: a.datum ?? null,

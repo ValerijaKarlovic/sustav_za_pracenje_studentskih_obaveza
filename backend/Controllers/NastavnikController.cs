@@ -88,13 +88,28 @@ public class NastavnikController(AppDbContext db, KolegijPregledService pregled)
 
     [HttpGet("aktivnosti/{id:int}/studenti")]
     public async Task<ActionResult<object>> StudentiZaAktivnost(int id)
-        => Ok(await (from upis in db.Upisi
-                     join s in db.Studenti on upis.StudentId equals s.KorisnikId
-                     join u in db.Korisnici on s.KorisnikId equals u.Id
-                     join e in db.Evidencije.Where(x => x.AktivnostId == id)
-                         on s.KorisnikId equals e.StudentId into evidencije
-                     where upis.KolegijId == db.Aktivnosti.Where(a => a.Id == id).Select(a => a.KolegijId).FirstOrDefault()
-                     select new { studentId = s.KorisnikId, ime = u.Ime + " " + u.Prezime, status = evidencije.Select(x => x.Status).FirstOrDefault() ?? "ceka_se", bodovi = evidencije.Select(x => x.Bodovi).FirstOrDefault() }).ToListAsync());
+    {
+        var aktivnost = await db.Aktivnosti.Include(x => x.Kolegij).AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == id);
+        if (aktivnost is null || aktivnost.Kolegij.NastavnikId != NastavnikId)
+            return NotFound(new { poruka = "Aktivnost nije pronađena." });
+
+        var kolegijId = aktivnost.KolegijId;
+        var rezultat = await (from upis in db.Upisi
+                              join s in db.Studenti on upis.StudentId equals s.KorisnikId
+                              join u in db.Korisnici on s.KorisnikId equals u.Id
+                              join e in db.Evidencije.Where(x => x.AktivnostId == id)
+                                  on s.KorisnikId equals e.StudentId into evidencije
+                              where upis.KolegijId == kolegijId
+                              select new
+                              {
+                                  studentId = s.KorisnikId,
+                                  ime = u.Ime + " " + u.Prezime,
+                                  status = evidencije.Select(x => x.Status).FirstOrDefault() ?? "ceka_se",
+                                  bodovi = evidencije.Select(x => x.Bodovi).FirstOrDefault()
+                              }).ToListAsync();
+        return Ok(rezultat);
+    }
 
     [HttpPost("aktivnosti")]
     public async Task<ActionResult<Aktivnost>> DodajAktivnost(AktivnostZahtjev zahtjev)
@@ -121,6 +136,8 @@ public class NastavnikController(AppDbContext db, KolegijPregledService pregled)
     {
         var aktivnost = await db.Aktivnosti.Include(x => x.Kolegij).SingleOrDefaultAsync(x => x.Id == id);
         if (aktivnost is null || aktivnost.Kolegij.NastavnikId != NastavnikId) return NotFound();
+        var noviKolegijOk = await db.Kolegiji.AnyAsync(x => x.Id == zahtjev.KolegijId && x.NastavnikId == NastavnikId);
+        if (!noviKolegijOk) return NotFound(new { poruka = "Kolegij nije pronađen." });
         aktivnost.KolegijId = zahtjev.KolegijId;
         aktivnost.VrstaId = zahtjev.VrstaId;
         aktivnost.Naziv = zahtjev.Naziv;
@@ -148,6 +165,14 @@ public class NastavnikController(AppDbContext db, KolegijPregledService pregled)
             .SingleOrDefaultAsync(x => x.Id == aktivnostId);
         if (aktivnost is null || aktivnost.Kolegij.NastavnikId != NastavnikId)
             return NotFound(new { poruka = "Aktivnost nije pronađena." });
+
+        var upisan = await db.Upisi.AnyAsync(x =>
+            x.KolegijId == aktivnost.KolegijId && x.StudentId == studentId);
+        if (!upisan)
+            return BadRequest(new { poruka = "Student nije upisan na ovaj kolegij." });
+
+        var greska = EvidencijaValidator.Validiraj(zahtjev, aktivnost);
+        if (greska is not null) return BadRequest(new { poruka = greska });
 
         var evidencija = await db.Evidencije.SingleOrDefaultAsync(x =>
             x.AktivnostId == aktivnostId && x.StudentId == studentId);

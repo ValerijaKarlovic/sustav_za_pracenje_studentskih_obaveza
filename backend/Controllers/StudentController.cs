@@ -11,53 +11,37 @@ namespace backend.Controllers;
 [ApiController]
 [Authorize(Roles = "student")]
 [Route("api/student")]
-public class StudentController(AppDbContext db) : ControllerBase
+public class StudentController(AppDbContext db, KolegijRezultatService kolegijRezultat) : ControllerBase
 {
     private int StudentId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet("kolegiji")]
-    public async Task<ActionResult<IEnumerable<BodoviStudentKolegij>>> Kolegiji()
-        => Ok(await db.BodoviStudentKolegij.Where(x => x.StudentId == StudentId).ToListAsync());
+    public async Task<ActionResult<IEnumerable<object>>> Kolegiji()
+    {
+        var lista = await kolegijRezultat.ListZaStudentaAsync(StudentId);
+        return Ok(lista);
+    }
 
     [HttpGet("kolegiji/{id:int}")]
     public async Task<ActionResult<object>> Kolegij(int id)
     {
-        var upis = await db.Upisi.AsNoTracking().SingleOrDefaultAsync(x => x.StudentId == StudentId && x.KolegijId == id);
-        if (upis is null) return NotFound(new { poruka = "Kolegij nije pronađen." });
+        var detalj = await kolegijRezultat.DetaljZaStudentaAsync(StudentId, id);
+        if (detalj is null) return NotFound(new { poruka = "Kolegij nije pronađen." });
 
-        var kolegij = await db.Kolegiji.AsNoTracking().SingleAsync(x => x.Id == id);
-        var nastavnik = await db.Korisnici.AsNoTracking()
-            .Where(n => n.Id == kolegij.NastavnikId)
-            .Select(n => n.Ime + " " + n.Prezime)
-            .SingleOrDefaultAsync() ?? "";
-        var aktivnosti = await (from a in db.Aktivnosti.AsNoTracking()
-                                join v in db.VrsteAktivnosti.AsNoTracking() on a.VrstaId equals v.Id
-                                join e in db.Evidencije.AsNoTracking().Where(x => x.StudentId == StudentId)
-                                    on new { AktivnostId = a.Id, KolegijId = a.KolegijId }
-                                    equals new { e.AktivnostId, e.KolegijId } into evidencije
-                                from e in evidencije.DefaultIfEmpty()
-                                where a.KolegijId == id
-                                select new AktivnostOdgovor(a.Id, a.Naziv, a.Datum, a.MaxBodovi,
-                                    e == null ? "ceka_se" : e.Status, e == null ? null : e.Bodovi, v.Naziv, a.Opis)).ToListAsync();
-
-        var bodovi = aktivnosti.Sum(a => a.Bodovi ?? 0);
-        var prag = kolegij.UkupnoBodova * kolegij.PragProlaza / 100m;
-        var prolazi = bodovi >= prag;
-        var sumaMaxAktivnosti = aktivnosti.Sum(a => a.MaxBodovi);
-        var zavrsenoOcjenjivanje = KolegijStatusHelper.ZavrsenoOcjenjivanje(
-            sumaMaxAktivnosti,
-            kolegij.UkupnoBodova,
-            aktivnosti.Select(a => a.Status).ToList());
-
+        var (kolegij, nastavnik, aktivnosti, rez) = detalj.Value;
         return Ok(new
         {
             kolegij,
             nastavnik,
             aktivnosti,
-            bodovi,
-            maxBodovi = kolegij.UkupnoBodova,
-            prolazi,
-            zavrsenoOcjenjivanje,
+            bodovi = rez.Bodovi,
+            maxBodovi = rez.MaxBodovi,
+            pragBodova = rez.PragBodova,
+            prolaziPrag = rez.ProlaziPrag,
+            zavrsenoOcjenjivanje = rez.ZavrsenoOcjenjivanje,
+            polozen = rez.Polozen,
+            ectsOstvareno = rez.EctsOstvareno,
+            statusPrikaz = rez.StatusPrikaz,
         });
     }
 

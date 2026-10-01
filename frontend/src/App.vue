@@ -6,7 +6,9 @@ import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()
 const route = useRoute()
 
-const showTopbar = computed(() => auth.isAuthenticated && route.name !== 'login')
+const showTopbar = computed(() =>
+  auth.isAuthenticated && route.name !== 'login' && route.name !== 'promjena-lozinke',
+)
 </script>
 
 <template>

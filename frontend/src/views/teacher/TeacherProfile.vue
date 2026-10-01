@@ -45,6 +45,10 @@ async function spremiLozinku() {
     lozinkaPoruka.value = 'Nova lozinka i potvrda se ne podudaraju.'
     return
   }
+  if (lozinkaForma.value.trenutna === lozinkaForma.value.nova) {
+    lozinkaPoruka.value = 'Nova lozinka mora biti različita od trenutne.'
+    return
+  }
 
   spremanjeLozinke.value = true
   try {
@@ -54,6 +58,7 @@ async function spremiLozinku() {
     })
     lozinkaPoruka.value = data.poruka || 'Lozinka je uspješno promijenjena.'
     lozinkaUspjeh.value = true
+    auth.oznaciLozinkuPromijenjenu()
     setTimeout(() => zatvoriPromjenuLozinke(), 1200)
   } catch (error) {
     lozinkaPoruka.value = error.response?.data?.poruka || 'Promjena lozinke nije uspjela.'

@@ -15,7 +15,7 @@ public class AdminController(AppDbContext db, KolegijPregledService pregled) : C
     private async Task<HashSet<int>> OpsegKolegija() => await pregled.SviKolegijIdsAsync();
 
     [HttpGet("dashboard")]
-    public async Task<ActionResult<object>> Dashboard([FromQuery] int? kolegijId)
+    public async Task<ActionResult<object>> Dashboard([FromQuery] int? kolegijId, [FromQuery] int? dana)
     {
         if (!kolegijId.HasValue)
         {
@@ -43,7 +43,7 @@ public class AdminController(AppDbContext db, KolegijPregledService pregled) : C
                                where k.Id == kolegijId.Value
                                select n.Ime + " " + n.Prezime).SingleOrDefaultAsync();
 
-        var dashboard = await pregled.GetDashboardAsync(opseg, kolegijId);
+        var dashboard = await pregled.GetDashboardAsync(opseg, kolegijId, dana);
         return Ok(new { nastavnik, dashboard });
     }
 
@@ -235,31 +235,72 @@ public class AdminController(AppDbContext db, KolegijPregledService pregled) : C
     [HttpPut("korisnici/{id:int}")]
     public async Task<IActionResult> UrediKorisnika(int id, AdminKorisnikUrediZahtjev zahtjev)
     {
+        var novaUloga = zahtjev.Uloga?.Trim().ToLowerInvariant();
+        if (novaUloga is not ("student" or "nastavnik" or "admin"))
+            return BadRequest(new { poruka = "Uloga mora biti student, nastavnik ili admin." });
+
         var korisnik = await db.Korisnici.FindAsync(id);
         if (korisnik is null) return NotFound();
 
         if (await db.Korisnici.AnyAsync(x => x.Email == zahtjev.Email.Trim().ToLowerInvariant() && x.Id != id))
             return Conflict(new { poruka = "Korisnik s tim emailom već postoji." });
 
-        if (korisnik.Uloga == "student")
+        if (novaUloga == "student" && string.IsNullOrWhiteSpace(zahtjev.BrojIndeksa))
+            return BadRequest(new { poruka = "Broj indeksa je obavezan za studenta." });
+
+        string? brojIndeksa = zahtjev.BrojIndeksa?.Trim();
+        if (novaUloga == "student" && await db.Studenti.AnyAsync(s => s.BrojIndeksa == brojIndeksa && s.KorisnikId != id))
+            return Conflict(new { poruka = "Broj indeksa je već zauzet." });
+
+        var staraUloga = korisnik.Uloga;
+        if (staraUloga != novaUloga)
         {
-            if (string.IsNullOrWhiteSpace(zahtjev.BrojIndeksa))
-                return BadRequest(new { poruka = "Broj indeksa je obavezan za studenta." });
+            if (staraUloga == "admin" && novaUloga != "admin")
+            {
+                var brojAdmina = await db.Korisnici.CountAsync(x => x.Uloga == "admin");
+                if (brojAdmina <= 1)
+                    return BadRequest(new { poruka = "Mora postojati barem jedan administrator." });
+            }
 
-            var brojIndeksa = zahtjev.BrojIndeksa.Trim();
-            if (await db.Studenti.AnyAsync(s => s.BrojIndeksa == brojIndeksa && s.KorisnikId != id))
-                return Conflict(new { poruka = "Broj indeksa je već zauzet." });
+            if (staraUloga == "nastavnik" && await db.Kolegiji.AnyAsync(x => x.NastavnikId == id))
+                return Conflict(new { poruka = "Nastavnik ima dodijeljene kolegije. Prvo promijenite nastavnika na kolegijima." });
 
+            if (staraUloga == "student")
+            {
+                var student = await db.Studenti.FindAsync(id);
+                if (student is not null)
+                    db.Studenti.Remove(student);
+            }
+            else if (staraUloga == "nastavnik")
+            {
+                var nastavnik = await db.Nastavnici.FindAsync(id);
+                if (nastavnik is not null)
+                    db.Nastavnici.Remove(nastavnik);
+            }
+
+            korisnik.Uloga = novaUloga;
+
+            if (novaUloga == "student")
+                db.Studenti.Add(new Student { KorisnikId = id, BrojIndeksa = brojIndeksa! });
+            else if (novaUloga == "nastavnik")
+                db.Nastavnici.Add(new Nastavnik { KorisnikId = id });
+        }
+        else if (novaUloga == "student")
+        {
             var student = await db.Studenti.FindAsync(id);
-            if (student is null) return BadRequest(new { poruka = "Podaci studenta nisu pronađeni." });
-            student.BrojIndeksa = brojIndeksa;
+            if (student is null)
+                return BadRequest(new { poruka = "Podaci studenta nisu pronađeni." });
+            student.BrojIndeksa = brojIndeksa!;
         }
 
         korisnik.Ime = zahtjev.Ime.Trim();
         korisnik.Prezime = zahtjev.Prezime.Trim();
         korisnik.Email = zahtjev.Email.Trim().ToLowerInvariant();
         if (!string.IsNullOrWhiteSpace(zahtjev.Lozinka))
+        {
             korisnik.LozinkaHash = BCrypt.Net.BCrypt.HashPassword(zahtjev.Lozinka);
+            korisnik.MoraPromijenitiLozinku = true;
+        }
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -378,6 +419,14 @@ public class AdminController(AppDbContext db, KolegijPregledService pregled) : C
     {
         var aktivnost = await db.Aktivnosti.AsNoTracking().SingleOrDefaultAsync(x => x.Id == aktivnostId);
         if (aktivnost is null) return NotFound(new { poruka = "Aktivnost nije pronađena." });
+
+        if (!await db.Upisi.AnyAsync(x => x.KolegijId == aktivnost.KolegijId && x.StudentId == studentId))
+            return BadRequest(new { poruka = "Student nije upisan na ovaj kolegij." });
+
+        var greska = EvidencijaValidator.Validiraj(
+            new EvidencijaZahtjev(zahtjev.Status, zahtjev.Bodovi),
+            aktivnost);
+        if (greska is not null) return BadRequest(new { poruka = greska });
 
         var evidencija = await db.Evidencije.SingleOrDefaultAsync(x => x.AktivnostId == aktivnostId && x.StudentId == studentId);
         if (evidencija is null)

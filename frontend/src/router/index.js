@@ -4,6 +4,12 @@ import { useAuthStore } from '@/stores/auth'
 const routes = [
   { path: '/', redirect: '/login' },
   { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },
+  {
+    path: '/promjena-lozinke',
+    name: 'promjena-lozinke',
+    component: () => import('@/views/ChangePasswordView.vue'),
+    meta: { requiresAuth: true },
+  },
 
   { path: '/student', component: () => import('@/views/student/StudentDashboard.vue'), meta: { role: 'student' } },
   { path: '/student/aktivnosti', component: () => import('@/views/student/StudentActivities.vue'), meta: { role: 'student' } },
@@ -27,8 +33,16 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
-  if (to.meta.role && !auth.user) return next('/login')
+  const prijavljen = auth.user && localStorage.getItem('token')
+
+  if (to.meta.requiresAuth && !prijavljen) return next('/login')
+  if (to.meta.role && !prijavljen) return next('/login')
   if (to.meta.role && auth.user.role !== to.meta.role) return next('/login')
+
+  if (prijavljen && auth.user.moraPromijenitiLozinku && to.name !== 'promjena-lozinke' && to.name !== 'login') {
+    return next('/promjena-lozinke')
+  }
+
   next()
 })
 

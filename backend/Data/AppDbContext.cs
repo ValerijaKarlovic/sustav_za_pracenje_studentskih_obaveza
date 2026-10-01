@@ -77,8 +77,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<BodoviStudentKolegij>().Property(x => x.UkupnoBodova).HasColumnName("ukupno_bodova");
         modelBuilder.Entity<BodoviStudentKolegij>().Property(x => x.PragProlaza).HasColumnName("prag_prolaza");
         modelBuilder.Entity<BodoviStudentKolegij>().Property(x => x.Bodovi).HasColumnName("bodovi");
-        modelBuilder.Entity<BodoviStudentKolegij>().Property(x => x.EctsOstvareno).HasColumnName("ects_ostvareno");
-        modelBuilder.Entity<BodoviStudentKolegij>().Property(x => x.Prolazi).HasColumnName("prolazi");
         modelBuilder.Entity<NapredakStudentKolegij>().Property(x => x.StudentId).HasColumnName("student_id");
         modelBuilder.Entity<NapredakStudentKolegij>().Property(x => x.KolegijId).HasColumnName("kolegij_id");
         modelBuilder.Entity<NapredakStudentKolegij>().Property(x => x.Datum).HasColumnName("datum");

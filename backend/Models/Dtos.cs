@@ -29,7 +29,32 @@ public record KolegijZahtjev(string Sifra, string Naziv, short Ects, decimal Uku
 public record UpisZahtjev(int StudentId, int KolegijId);
 public record AdminKorisnikListOdgovor(int Id, string Ime, string Prezime, string Email, string Uloga, string? BrojIndeksa);
 public record AdminKorisnikZahtjev(string Ime, string Prezime, string Email, string Lozinka, string Uloga, string? BrojIndeksa);
-public record AdminKorisnikUrediZahtjev(string Ime, string Prezime, string Email, string? Lozinka, string? BrojIndeksa);
+public record AdminKorisnikUrediZahtjev(string Ime, string Prezime, string Email, string Uloga, string? Lozinka, string? BrojIndeksa);
 public record AdminEvidencijaZahtjev(string Status, decimal? Bodovi);
 public record KolegijPostavkeZahtjev(decimal UkupnoBodova, short PragProlaza);
 public record VrstaAktivnostiZahtjev(string Naziv);
+
+/// <summary>Jedinstveni rezultat studenta na kolegiju (izvor istine za API).</summary>
+public record KolegijRezultatDto(
+    decimal Bodovi,
+    decimal MaxBodovi,
+    decimal PragBodova,
+    bool ProlaziPrag,
+    bool SveObvezeDefinirane,
+    bool SveOcijenjeno,
+    bool ZavrsenoOcjenjivanje,
+    bool Polozen,
+    decimal EctsOstvareno,
+    string StatusPrikaz);
+
+public record StudentKolegijListOdgovor(
+    int KolegijId,
+    string Naziv,
+    short Ects,
+    decimal UkupnoBodova,
+    short PragProlaza,
+    decimal Bodovi,
+    decimal EctsOstvareno,
+    bool ProlaziPrag,
+    bool Polozen,
+    string StatusPrikaz);

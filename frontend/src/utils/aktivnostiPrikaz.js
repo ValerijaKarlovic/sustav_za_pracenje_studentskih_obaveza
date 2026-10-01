@@ -13,41 +13,7 @@ export function mapObvezeZaPrikaz(aktivnosti) {
   })
 }
 
-/** Zbroj max bodova aktivnosti na kolegiju pokriva ukupno bodova kolegija. */
-export function sveObavezeDefiniraneNaKolegiju(aktivnosti, ukupnoBodovaKolegija) {
-  const sumaMax = (aktivnosti ?? []).reduce((s, a) => s + Number(a.maxBodovi ?? 0), 0)
-  return sumaMax >= Number(ukupnoBodovaKolegija)
-}
-
-/** Aktivnost je ocijenjena kad status u evidenciji nije „ceka_se”. */
-export function sveAktivnostiOcijenjene(aktivnosti) {
-  const lista = aktivnosti ?? []
-  if (!lista.length) return false
-  return lista.every(a => a.status !== 'ceka_se')
-}
-
-/** Sve obaveze unesene u sustav i student ocijenjen na svakoj. */
-export function zavrsenoOcjenjivanje(aktivnosti, ukupnoBodovaKolegija) {
-  return sveObavezeDefiniraneNaKolegiju(aktivnosti, ukupnoBodovaKolegija)
-    && sveAktivnostiOcijenjene(aktivnosti)
-}
-
-/** Položeno = prag bodova + sve obaveze na kolegiju + sve ocijenjeno. */
-export function kolegijJePolozen(prolazi, aktivnosti, ukupnoBodovaKolegija) {
-  return Boolean(prolazi) && zavrsenoOcjenjivanje(aktivnosti, ukupnoBodovaKolegija)
-}
-
-/** ECTS ulazi u ukupno samo kad je kolegij položen. */
-export function ectsOstvarenoZaKolegij(prolazi, ectsKolegija, aktivnosti, ukupnoBodovaKolegija) {
-  return kolegijJePolozen(prolazi, aktivnosti, ukupnoBodovaKolegija) ? Number(ectsKolegija) : 0
-}
-
-export function statusLabelStudenta(prolazi, aktivnosti, maxBodoviKolegija) {
-  if (kolegijJePolozen(prolazi, aktivnosti, maxBodoviKolegija)) return 'Položeno'
-  if (zavrsenoOcjenjivanje(aktivnosti, maxBodoviKolegija)) return 'Nije položeno'
-  return 'U tijeku'
-}
-
+/** Rezervno za starije odgovore; status s API-ja je statusPrikaz iz KolegijRezultatService. */
 export function statusLabelNastavnika(bodovi, maxBodovi, pragProlaza, zavrseno = false) {
   const prag = maxBodovi * (pragProlaza / 100)
   if (zavrseno && bodovi >= prag) return 'Položeno'

@@ -1,12 +1,29 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import api from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
+import LineChart from '@/components/shared/LineChart.vue'
 import StatCard from '@/components/shared/StatCard.vue'
 import { formatBodovi } from '@/utils/formatBodovi'
 
+const auth = useAuthStore()
 const kolegiji = ref([])
 const odabraniKolegij = ref('')
-const dashboard = ref({ statistika: {}, najaktivniji: [], usporedba: [], poVrsti: [], bodoviPoKolegiju: [] })
+const razdobljeDana = ref('')
+const dashboard = ref({ statistika: {}, najaktivniji: [], usporedba: [], poVrsti: [], bodoviPoKolegiju: [], angažman: [] })
+
+const pozdrav = computed(() => {
+  const ime = auth.user?.ime || ''
+  return ime ? `Dobrodošli, ${ime}` : 'Dashboard'
+})
+
+const angažmanGraf = computed(() => {
+  const lista = dashboard.value.angažman || []
+  return {
+    labels: lista.map(x => x.label),
+    points: lista.map(x => Number(x.bodovi) || 0),
+  }
+})
 const boje = ['#2f5fd1', '#1a7f37', '#d99a1f', '#c62828', '#7c3aed']
 
 const najaktivniji = computed(() => dashboard.value.najaktivniji || [])
@@ -30,8 +47,10 @@ const prosjekBodovaPoKolegiju = computed(() =>
 )
 
 const vrsteAktivnosti = computed(() => {
-  const ukupno = (dashboard.value.poVrsti || []).reduce((sum, item) => sum + item.broj, 0) || 1
-  return (dashboard.value.poVrsti || []).map((item, index) => ({
+  const poVrsti = dashboard.value.poVrsti || []
+  const ukupno = poVrsti.reduce((sum, item) => sum + item.broj, 0)
+  if (!ukupno) return []
+  return poVrsti.map((item, index) => ({
     naziv: item.naziv,
     postotak: Math.round(item.broj / ukupno * 100),
     boja: boje[index % boje.length],
@@ -51,6 +70,7 @@ function pieGradient() {
 async function ucitajDashboard() {
   const params = new URLSearchParams()
   if (odabraniKolegij.value) params.set('kolegijId', odabraniKolegij.value)
+  if (razdobljeDana.value) params.set('dana', razdobljeDana.value)
   const { data } = await api.get(`/nastavnik/dashboard?${params}`)
   dashboard.value = data
 }
@@ -73,6 +93,7 @@ onUnmounted(() => {
 })
 
 watch(odabraniKolegij, () => ucitajDashboard())
+watch(razdobljeDana, () => ucitajDashboard())
 </script>
 
 <template>
@@ -84,12 +105,17 @@ watch(odabraniKolegij, () => ucitajDashboard())
   </nav>
 
   <main class="page-content">
-    <h2 class="page-title">Dobrodošao, Marko</h2>
+    <h2 class="page-title">{{ pozdrav }}</h2>
 
     <div class="filters">
       <select v-model="odabraniKolegij">
         <option value="">Svi kolegiji</option>
         <option v-for="k in kolegiji" :key="k.id" :value="k.id">{{ k.naziv }}</option>
+      </select>
+      <select v-model="razdobljeDana">
+        <option value="">Cijelo razdoblje</option>
+        <option value="7">Zadnjih 7 dana</option>
+        <option value="30">Zadnjih 30 dana</option>
       </select>
     </div>
 
@@ -131,9 +157,19 @@ watch(odabraniKolegij, () => ucitajDashboard())
       </div>
     </div>
 
+    <div class="section-title">Prosjek bodova po mjesecu (angažman)</div>
+    <div class="card">
+      <LineChart
+        v-if="angažmanGraf.labels.length"
+        :points="angažmanGraf.points"
+        :labels="angažmanGraf.labels"
+      />
+      <p v-else class="chart-empty">Nema aktivnosti s datumom u odabranom razdoblju.</p>
+    </div>
+
     <div class="section-title">Raspodjela aktivnosti po vrsti</div>
     <div class="card">
-      <div class="pie-wrap">
+      <div v-if="vrsteAktivnosti.length" class="pie-wrap">
         <div class="pie-chart" :style="{ background: pieGradient() }"></div>
         <div class="pie-legend">
           <div class="legend-item" v-for="v in vrsteAktivnosti" :key="v.naziv">
@@ -142,6 +178,15 @@ watch(odabraniKolegij, () => ucitajDashboard())
           </div>
         </div>
       </div>
+      <p v-else class="chart-empty">Nema aktivnosti za prikaz.</p>
     </div>
   </main>
 </template>
+
+<style scoped>
+.chart-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+</style>

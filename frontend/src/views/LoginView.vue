@@ -14,7 +14,11 @@ async function handleLogin() {
   error.value = ''
   try {
     const user = await auth.login(email.value, password.value)
-    router.push(`/${user.role}`)
+    if (user.moraPromijenitiLozinku) {
+      router.push('/promjena-lozinke')
+    } else {
+      router.push(`/${user.role}`)
+    }
   } catch (e) {
     error.value = e.message.includes('Network Error')
       ? 'Backend nije pokrenut. Pokrenite: dotnet run --project backend'

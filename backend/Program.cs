@@ -1,19 +1,40 @@
 using System.Text;
 using backend.Data;
+using backend.Middleware;
 using backend.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Praćenje studentskih obaveza API",
+        Version = "v1",
+    });
+    options.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "1) POST /api/auth/login → kopiraj polje „token”. 2) Authorize → upiši samo token (bez „Bearer ”).",
+    });
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("bearer", document)] = [],
+    });
+});
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<KolegijPregledService>();
+builder.Services.AddScoped<KolegijRezultatService>();
 
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException("JWT ključ nije konfiguriran.");
@@ -58,11 +79,12 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c => c.EnablePersistAuthorization());
 }
 
 app.UseCors("Frontend");
 app.UseAuthentication();
+app.UseMiddleware<MoraPromijenitiLozinkuMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

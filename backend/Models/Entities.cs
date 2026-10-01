@@ -76,8 +76,6 @@ public class BodoviStudentKolegij
     public decimal UkupnoBodova { get; set; }
     public short PragProlaza { get; set; }
     public decimal Bodovi { get; set; }
-    public decimal EctsOstvareno { get; set; }
-    public bool Prolazi { get; set; }
 }
 
 public class NapredakStudentKolegij

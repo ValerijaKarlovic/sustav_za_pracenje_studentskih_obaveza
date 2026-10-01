@@ -45,6 +45,9 @@ public class AuthController(AppDbContext db, IConfiguration configuration) : Con
         if (string.IsNullOrWhiteSpace(zahtjev.NovaLozinka) || zahtjev.NovaLozinka.Length < 6)
             return BadRequest(new { poruka = "Nova lozinka mora imati najmanje 6 znakova." });
 
+        if (zahtjev.TrenutnaLozinka == zahtjev.NovaLozinka)
+            return BadRequest(new { poruka = "Nova lozinka mora biti različita od trenutne." });
+
         korisnik.LozinkaHash = BCrypt.Net.BCrypt.HashPassword(zahtjev.NovaLozinka);
         korisnik.MoraPromijenitiLozinku = false;
         await db.SaveChangesAsync();

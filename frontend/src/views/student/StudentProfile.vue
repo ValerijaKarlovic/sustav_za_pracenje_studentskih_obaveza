@@ -20,7 +20,7 @@ onMounted(async () => {
     api.get('/student/kolegiji'),
   ])
   brojIndeksa.value = profil.data.brojIndeksa
-  kolegiji.value = kolegijiOdgovor.data.map(k => k.kolegij)
+  kolegiji.value = kolegijiOdgovor.data.map(k => k.naziv ?? k.kolegij)
 })
 
 function otvoriPromjenuLozinke() {
@@ -42,6 +42,10 @@ async function spremiLozinku() {
     lozinkaPoruka.value = 'Nova lozinka i potvrda se ne podudaraju.'
     return
   }
+  if (lozinkaForma.value.trenutna === lozinkaForma.value.nova) {
+    lozinkaPoruka.value = 'Nova lozinka mora biti različita od trenutne.'
+    return
+  }
 
   spremanje.value = true
   try {
@@ -51,6 +55,7 @@ async function spremiLozinku() {
     })
     lozinkaPoruka.value = data.poruka || 'Lozinka je uspješno promijenjena.'
     lozinkaUspjeh.value = true
+    auth.oznaciLozinkuPromijenjenu()
     setTimeout(() => zatvoriPromjenuLozinke(), 1200)
   } catch (error) {
     lozinkaPoruka.value = error.response?.data?.poruka || 'Promjena lozinke nije uspjela.'
