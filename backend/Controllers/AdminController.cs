@@ -12,6 +12,8 @@ namespace backend.Controllers;
 [Route("api/admin")]
 public class AdminController(AppDbContext db, KolegijPregledService pregled) : ControllerBase
 {
+    private const string DozvoljenaEmailDomena = "@fakultet.hr";
+
     private async Task<HashSet<int>> OpsegKolegija() => await pregled.SviKolegijIdsAsync();
 
     [HttpGet("dashboard")]
@@ -202,7 +204,11 @@ public class AdminController(AppDbContext db, KolegijPregledService pregled) : C
     [HttpPost("korisnici")]
     public async Task<ActionResult<Korisnik>> DodajKorisnika(AdminKorisnikZahtjev zahtjev)
     {
-        if (await db.Korisnici.AnyAsync(x => x.Email == zahtjev.Email.ToLower()))
+        var email = zahtjev.Email.Trim().ToLowerInvariant();
+        if (!email.EndsWith(DozvoljenaEmailDomena, StringComparison.Ordinal))
+            return BadRequest(new { poruka = "Email mora završavati s @fakultet.hr." });
+
+        if (await db.Korisnici.AnyAsync(x => x.Email == email))
             return Conflict(new { poruka = "Korisnik s tim emailom već postoji." });
 
         if (zahtjev.Uloga == "student" && string.IsNullOrWhiteSpace(zahtjev.BrojIndeksa))
@@ -216,7 +222,7 @@ public class AdminController(AppDbContext db, KolegijPregledService pregled) : C
         {
             Ime = zahtjev.Ime.Trim(),
             Prezime = zahtjev.Prezime.Trim(),
-            Email = zahtjev.Email.Trim().ToLowerInvariant(),
+            Email = email,
             LozinkaHash = BCrypt.Net.BCrypt.HashPassword(zahtjev.Lozinka),
             Uloga = zahtjev.Uloga,
             MoraPromijenitiLozinku = true
@@ -239,10 +245,14 @@ public class AdminController(AppDbContext db, KolegijPregledService pregled) : C
         if (novaUloga is not ("student" or "nastavnik" or "admin"))
             return BadRequest(new { poruka = "Uloga mora biti student, nastavnik ili admin." });
 
+        var email = zahtjev.Email.Trim().ToLowerInvariant();
+        if (!email.EndsWith(DozvoljenaEmailDomena, StringComparison.Ordinal))
+            return BadRequest(new { poruka = "Email mora završavati s @fakultet.hr." });
+
         var korisnik = await db.Korisnici.FindAsync(id);
         if (korisnik is null) return NotFound();
 
-        if (await db.Korisnici.AnyAsync(x => x.Email == zahtjev.Email.Trim().ToLowerInvariant() && x.Id != id))
+        if (await db.Korisnici.AnyAsync(x => x.Email == email && x.Id != id))
             return Conflict(new { poruka = "Korisnik s tim emailom već postoji." });
 
         if (novaUloga == "student" && string.IsNullOrWhiteSpace(zahtjev.BrojIndeksa))
@@ -295,7 +305,7 @@ public class AdminController(AppDbContext db, KolegijPregledService pregled) : C
 
         korisnik.Ime = zahtjev.Ime.Trim();
         korisnik.Prezime = zahtjev.Prezime.Trim();
-        korisnik.Email = zahtjev.Email.Trim().ToLowerInvariant();
+        korisnik.Email = email;
         if (!string.IsNullOrWhiteSpace(zahtjev.Lozinka))
         {
             korisnik.LozinkaHash = BCrypt.Net.BCrypt.HashPassword(zahtjev.Lozinka);
@@ -310,6 +320,8 @@ public class AdminController(AppDbContext db, KolegijPregledService pregled) : C
     {
         var korisnik = await db.Korisnici.FindAsync(id);
         if (korisnik is null) return NotFound();
+        if (korisnik.Uloga == "admin" && await db.Korisnici.CountAsync(x => x.Uloga == "admin") <= 1)
+            return BadRequest(new { poruka = "Ne može se obrisati zadnji administrator u sustavu." });
         if (korisnik.Uloga == "nastavnik" && await db.Kolegiji.AnyAsync(x => x.NastavnikId == id))
             return Conflict(new { poruka = "Nastavnik ima kolegije. Prvo promijenite nastavnika kolegijima." });
         db.Korisnici.Remove(korisnik);

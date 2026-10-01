@@ -53,6 +53,10 @@ function payloadZaSpremanje() {
 
 async function spremi() {
   if (!forma.value.ime.trim() || !forma.value.prezime.trim() || !forma.value.email.trim()) return
+  if (!forma.value.email.trim().toLowerCase().endsWith('@fakultet.hr')) {
+    window.alert('Email mora završavati s @fakultet.hr.')
+    return
+  }
   if (forma.value.uloga === 'student' && !forma.value.brojIndeksa.trim()) {
     window.alert('Unesite broj indeksa za studenta.')
     return

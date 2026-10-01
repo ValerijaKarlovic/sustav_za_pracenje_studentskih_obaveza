@@ -53,7 +53,7 @@ function aktivnostiZaKolegij(nazivKolegija) {
 }
 
 const ukupnoEcts = computed(() =>
-  kolegiji.value.reduce((s, k) => s + Number(k.ectsOstvareno ?? 0), 0).toFixed(1),
+  kolegiji.value.reduce((s, k) => s + Number(k.ectsOstvareno ?? 0), 0),
 )
 const ukupnoEctsMax = computed(() => kolegiji.value.reduce((s, k) => s + k.ects, 0))
 
