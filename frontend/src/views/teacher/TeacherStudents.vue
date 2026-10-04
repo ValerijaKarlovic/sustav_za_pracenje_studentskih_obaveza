@@ -2,7 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import api from '@/api/client'
 import Modal from '@/components/shared/Modal.vue'
+import Dialog from '@/components/shared/Dialog.vue'
 import CourseProgressModal from '@/components/shared/CourseProgressModal.vue'
+import { useDialog } from '@/composables/useDialog'
 import { statusLabelNastavnika } from '@/utils/aktivnostiPrikaz'
 
 const kolegiji = ref([])
@@ -15,6 +17,7 @@ const selected = ref(null)
 const slobodniStudenti = ref([])
 const noviStudentId = ref('')
 const showEnrollModal = ref(false)
+const { dialog, potvrdi, potvrdiDialog, odustaniDialog } = useDialog()
 
 const odabraniKolegijNaziv = computed(() => kolegiji.value.find(k => k.id === odabraniKolegij.value)?.naziv || '')
 
@@ -105,7 +108,7 @@ async function upisiStudenta() {
 }
 
 async function ukloniStudenta(student) {
-  if (!window.confirm('Jeste li sigurni da želite ukloniti studenta s ovog kolegija?')) return
+  if (!await potvrdi('Jeste li sigurni da želite ukloniti studenta s ovog kolegija?')) return
   await api.delete(`/nastavnik/upisi/${odabraniKolegij.value}/${student.id}`)
   if (selected.value?.studentIme === student.ime) selected.value = null
   await ucitajStudente()
@@ -180,5 +183,6 @@ onMounted(ucitajKolegije)
       :aktivnosti-kolegija="selected.aktivnostiKolegija"
       @close="selected = null"
     />
+    <Dialog v-if="dialog.open" :message="dialog.message" :type="dialog.type" @confirm="potvrdiDialog" @cancel="odustaniDialog" />
   </main>
 </template>

@@ -2,7 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import api from '@/api/client'
 import Modal from '@/components/shared/Modal.vue'
+import Dialog from '@/components/shared/Dialog.vue'
 import CourseProgressModal from '@/components/shared/CourseProgressModal.vue'
+import { useDialog } from '@/composables/useDialog'
 import { statusLabelNastavnika } from '@/utils/aktivnostiPrikaz'
 
 const kolegiji = ref([])
@@ -17,6 +19,7 @@ const slobodniStudenti = ref([])
 const showEnrollModal = ref(false)
 const noviStudentId = ref('')
 const selectedStudent = ref(null)
+const { dialog, potvrdi, potvrdiDialog, odustaniDialog } = useDialog()
 
 const rosterModalSubtitle = computed(() =>
   rosterKolegij.value ? `Nastavnik: ${rosterKolegij.value.nastavnik}` : '',
@@ -81,7 +84,7 @@ async function spremi() {
 }
 
 async function obrisi(kolegij) {
-  if (!window.confirm(`Jeste li sigurni da želite obrisati kolegij ${kolegij.naziv}?`)) return
+  if (!await potvrdi(`Jeste li sigurni da želite obrisati kolegij ${kolegij.naziv}?`)) return
   await api.delete(`/admin/kolegiji/${kolegij.id}`)
   if (rosterKolegij.value?.id === kolegij.id) rosterKolegij.value = null
   await ucitaj()
@@ -103,7 +106,7 @@ async function upisiStudenta() {
 }
 
 async function ukloniStudenta(student) {
-  if (!window.confirm('Jeste li sigurni da želite ukloniti studenta s ovog kolegija?')) return
+  if (!await potvrdi('Jeste li sigurni da želite ukloniti studenta s ovog kolegija?')) return
   await api.delete(`/admin/upisi/${rosterKolegij.value.id}/${student.id}`)
   if (selectedStudent.value?.studentIme === student.ime) selectedStudent.value = null
   await ucitajRoster()
@@ -194,5 +197,6 @@ onMounted(ucitaj)
       :aktivnosti-kolegija="selectedStudent.aktivnostiKolegija"
       @close="selectedStudent = null"
     />
+    <Dialog v-if="dialog.open" :message="dialog.message" :type="dialog.type" @confirm="potvrdiDialog" @cancel="odustaniDialog" />
   </main>
 </template>

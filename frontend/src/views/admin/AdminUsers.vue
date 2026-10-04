@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import api from '@/api/client'
 import Modal from '@/components/shared/Modal.vue'
+import Dialog from '@/components/shared/Dialog.vue'
+import { useDialog } from '@/composables/useDialog'
 
 const korisnici = ref([])
 const filterUloga = ref('Sve uloge')
@@ -10,6 +12,7 @@ const editingId = ref(null)
 const forma = ref({ ime: '', prezime: '', email: '', uloga: 'student', brojIndeksa: '', lozinka: '' })
 const roleBadgeClass = { student: 'role-student', nastavnik: 'role-nastavnik', admin: 'role-admin' }
 const roleLabel = { student: 'Student', nastavnik: 'Nastavnik', admin: 'Administrator' }
+const { dialog, obavijest, potvrdi, potvrdiDialog, odustaniDialog } = useDialog()
 
 const filtrirani = computed(() => korisnici.value.filter(k => filterUloga.value === 'Sve uloge' || k.uloga === filterUloga.value))
 
@@ -54,11 +57,11 @@ function payloadZaSpremanje() {
 async function spremi() {
   if (!forma.value.ime.trim() || !forma.value.prezime.trim() || !forma.value.email.trim()) return
   if (!forma.value.email.trim().toLowerCase().endsWith('@fakultet.hr')) {
-    window.alert('Email mora završavati s @fakultet.hr.')
+    await obavijest('Email mora završavati s @fakultet.hr.')
     return
   }
   if (forma.value.uloga === 'student' && !forma.value.brojIndeksa.trim()) {
-    window.alert('Unesite broj indeksa za studenta.')
+    await obavijest('Unesite broj indeksa za studenta.')
     return
   }
   try {
@@ -69,7 +72,7 @@ async function spremi() {
     } else {
       const lozinka = forma.value.lozinka.trim()
       if (lozinka.length < 6) {
-        window.alert('Početna lozinka mora imati najmanje 6 znakova.')
+        await obavijest('Početna lozinka mora imati najmanje 6 znakova.')
         return
       }
       await api.post('/admin/korisnici', {
@@ -81,14 +84,18 @@ async function spremi() {
     showModal.value = false
     await ucitaj()
   } catch (error) {
-    window.alert(error.response?.data?.poruka || 'Spremanje nije uspjelo.')
+    await obavijest(error.response?.data?.poruka || 'Spremanje nije uspjelo.')
   }
 }
 
 async function obrisi(korisnik) {
-  if (!window.confirm(`Jeste li sigurni da želite obrisati korisnika ${korisnik.ime} ${korisnik.prezime}?`)) return
-  await api.delete(`/admin/korisnici/${korisnik.id}`)
-  await ucitaj()
+  if (!await potvrdi(`Jeste li sigurni da želite obrisati korisnika ${korisnik.ime} ${korisnik.prezime}?`)) return
+  try {
+    await api.delete(`/admin/korisnici/${korisnik.id}`)
+    await ucitaj()
+  } catch (error) {
+    await obavijest(error.response?.data?.poruka || 'Brisanje korisnika nije uspjelo.')
+  }
 }
 
 onMounted(ucitaj)
@@ -129,6 +136,7 @@ onMounted(ucitaj)
       <input type="password" v-model="forma.lozinka" autocomplete="new-password" />
       <div class="modal-actions"><button class="small-primary" @click="spremi">Spremi</button></div>
     </Modal>
+    <Dialog v-if="dialog.open" :message="dialog.message" :type="dialog.type" @confirm="potvrdiDialog" @cancel="odustaniDialog" />
   </main>
 </template>
 

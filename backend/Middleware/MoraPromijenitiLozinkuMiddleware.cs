@@ -31,12 +31,29 @@ public class MoraPromijenitiLozinkuMiddleware(RequestDelegate next)
             return;
         }
 
-        var mora = await db.Korisnici.AsNoTracking()
+        var korisnik = await db.Korisnici.AsNoTracking()
             .Where(x => x.Id == korisnikId)
-            .Select(x => x.MoraPromijenitiLozinku)
+            .Select(x => new { x.Uloga, x.MoraPromijenitiLozinku })
             .SingleOrDefaultAsync();
 
-        if (mora)
+        if (korisnik is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+
+        var ulogaTokena = context.User.FindFirstValue(ClaimTypes.Role);
+        if (!string.Equals(ulogaTokena, korisnik.Uloga, StringComparison.Ordinal))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                poruka = "Korisnička uloga je promijenjena. Prijavite se ponovno."
+            });
+            return;
+        }
+
+        if (korisnik.MoraPromijenitiLozinku)
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             await context.Response.WriteAsJsonAsync(new

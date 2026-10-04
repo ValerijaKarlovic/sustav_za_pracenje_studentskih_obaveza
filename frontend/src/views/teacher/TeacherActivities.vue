@@ -2,7 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import api from '@/api/client'
 import Modal from '@/components/shared/Modal.vue'
+import Dialog from '@/components/shared/Dialog.vue'
 import ActivitySortSelect from '@/components/shared/ActivitySortSelect.vue'
+import { useDialog } from '@/composables/useDialog'
 import { sortirajAktivnostiPoDatumu } from '@/utils/sortiranjeAktivnosti'
 import { metaLinijaAktivnosti, naslovModalaBodova } from '@/utils/aktivnostiMeta'
 
@@ -19,6 +21,7 @@ const activeActivity = ref(null)
 const studenti = ref([])
 const novaVrstaCustom = ref('')
 const forma = ref({ kolegijId: '', vrstaId: '', naziv: '', opis: '', datum: '', maxBodovi: 0 })
+const { dialog, potvrdi, potvrdiDialog, odustaniDialog } = useDialog()
 
 const filtrirane = computed(() => {
   const lista = aktivnosti.value.filter(a =>
@@ -86,7 +89,7 @@ async function spremiAktivnost() {
 }
 
 async function obrisiAktivnost(aktivnost) {
-  if (!window.confirm('Jeste li sigurni da želite izbrisati ovu aktivnost?')) return
+  if (!await potvrdi('Jeste li sigurni da želite izbrisati ovu aktivnost?')) return
   await api.delete(`/nastavnik/aktivnosti/${aktivnost.id}`)
   await ucitaj()
 }
@@ -196,5 +199,6 @@ onMounted(ucitaj)
       </table>
       <div class="modal-actions"><button class="small-primary" @click="spremiBodove">Spremi sve</button></div>
     </Modal>
+    <Dialog v-if="dialog.open" :message="dialog.message" :type="dialog.type" @confirm="potvrdiDialog" @cancel="odustaniDialog" />
   </main>
 </template>

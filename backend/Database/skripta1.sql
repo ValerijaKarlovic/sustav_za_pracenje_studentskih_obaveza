@@ -10,7 +10,6 @@ CREATE TABLE korisnik (
     lozinka_hash              varchar(255)  NOT NULL,            
     uloga                     varchar(20)   NOT NULL,
     mora_promijeniti_lozinku  boolean       NOT NULL DEFAULT true, 
-    aktivan                   boolean       NOT NULL DEFAULT true,
     kreirano                  timestamptz   NOT NULL DEFAULT now(),
     CONSTRAINT korisnik_uloga_chk CHECK (uloga IN ('student', 'nastavnik', 'admin')),
     CONSTRAINT korisnik_email_lower_chk CHECK (email = lower(email))  
@@ -159,7 +158,6 @@ FROM evidencija e
 JOIN aktivnost a ON a.id = e.aktivnost_id
 WHERE e.bodovi IS NOT NULL
     AND e.status <> 'ceka_se';
-
 
 
 
