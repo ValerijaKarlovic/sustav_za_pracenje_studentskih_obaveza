@@ -31,7 +31,7 @@ async function handleLogin() {
   <div class="login-screen">
     <div class="login-box">
       <h1>Prijava u sustav</h1>
-      <p class="sub">Praćenje studentskih obaveza</p>
+      <p class="sub">Praćenje studentskih aktivnosti</p>
 
       <label for="email">Email</label>
       <input id="email" type="email" v-model="email" />

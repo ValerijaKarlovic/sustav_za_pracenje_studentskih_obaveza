@@ -1,4 +1,4 @@
-# Praćenje studentskih obaveza
+# Praćenje studentskih aktivnosti
 
 Vue 3 frontend + ASP.NET Core API + PostgreSQL.
 
