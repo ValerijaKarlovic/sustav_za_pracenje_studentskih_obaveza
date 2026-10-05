@@ -266,35 +266,40 @@ public class KolegijPregledService(AppDbContext db, KolegijRezultatService koleg
         => (await db.Kolegiji.Where(x => x.NastavnikId == nastavnikId).Select(x => x.Id).ToListAsync()).ToHashSet();
 
     /// <summary>
-    /// Mjeseci od prvog do zadnjeg s barem jednom aktivnošću (datum), uključujući prazne mjeseci između.
+    /// Mjeseci u kojima postoji barem jedna ocijenjena aktivnost s datumom.
     /// </summary>
     private static List<object> IzracunajAngazmanPoMjesecima(
         IReadOnlyList<(int AktivnostId, DateOnly? Datum)> aktivnosti,
         IReadOnlyList<(int AktivnostId, string Status, decimal? Bodovi)> evidencije)
     {
-        var datumi = aktivnosti.Where(a => a.Datum.HasValue).Select(a => a.Datum!.Value).ToList();
-        if (datumi.Count == 0) return [];
-
-        var minDatum = datumi.Min();
-        var maxDatum = datumi.Max();
-        var min = new DateOnly(minDatum.Year, minDatum.Month, 1);
-        var max = new DateOnly(maxDatum.Year, maxDatum.Month, 1);
         var datumPoAktivnosti = aktivnosti.ToDictionary(a => a.AktivnostId, a => a.Datum);
+        var ocjenePoMjesecu = evidencije
+            .Where(e => e.Status != "ceka_se" && e.Bodovi.HasValue)
+            .Where(e => datumPoAktivnosti.TryGetValue(e.AktivnostId, out var datum) && datum.HasValue)
+            .GroupBy(e =>
+            {
+                var datum = datumPoAktivnosti[e.AktivnostId]!.Value;
+                return new { datum.Year, datum.Month };
+            })
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(e => e.Bodovi!.Value).Average());
+
+        if (ocjenePoMjesecu.Count == 0) return [];
 
         var hr = new System.Globalization.CultureInfo("hr-HR");
-        var viseGodina = min.Year != max.Year;
+        var mjeseci = ocjenePoMjesecu.Keys
+            .OrderBy(x => x.Year)
+            .ThenBy(x => x.Month)
+            .ToList();
+        var viseGodina = mjeseci[0].Year != mjeseci[^1].Year;
         var rezultat = new List<object>();
 
-        for (var m = min; m <= max; m = m.AddMonths(1))
+        foreach (var mjesec in mjeseci)
         {
-            var ocjene = evidencije
-                .Where(e => e.Status != "ceka_se" && e.Bodovi.HasValue)
-                .Where(e => datumPoAktivnosti.TryGetValue(e.AktivnostId, out var d) && d.HasValue
-                            && d.Value.Year == m.Year && d.Value.Month == m.Month)
-                .Select(e => e.Bodovi!.Value)
-                .ToList();
-            var prosjek = ocjene.Count > 0 ? ocjene.Average() : 0m;
-            var label = viseGodina ? m.ToString("MMM yyyy", hr) : m.ToString("MMM", hr);
+            var datum = new DateOnly(mjesec.Year, mjesec.Month, 1);
+            var label = viseGodina ? datum.ToString("MMM yyyy", hr) : datum.ToString("MMM", hr);
+            var prosjek = ocjenePoMjesecu[mjesec];
             rezultat.Add(new { label, bodovi = prosjek });
         }
 

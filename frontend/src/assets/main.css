@@ -88,7 +88,6 @@ p.page-sub{ color:var(--muted); font-size:13px; margin:0 0 18px; }
 .value-of{ font-size:13px; font-weight:400; color:var(--text); }
 
 svg.chart{ width:100%; height:150px; display:block; }
-.chart-labels{ display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:4px; padding:0 2px; }
 .chart-caption{ color:var(--muted); font-size:12px; margin-top:10px; }
 
 .filters{ display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }

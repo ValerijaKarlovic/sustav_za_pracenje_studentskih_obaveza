@@ -12,9 +12,14 @@ const coords = computed(() => {
   const max = Math.max(...safePoints, 1)
   const min = Math.min(...safePoints, 0)
   const range = max - min || 1
-  const stepX = safePoints.length > 1 ? 380 / (safePoints.length - 1) : 0
+  const leftPadding = 30
+  const rightPadding = 30
+  const drawableWidth = 400 - leftPadding - rightPadding
+  const stepX = safePoints.length > 1 ? drawableWidth / (safePoints.length - 1) : 0
   return safePoints.map((p, i) => {
-    const x = 10 + i * stepX
+    const x = safePoints.length > 1
+      ? leftPadding + i * stepX
+      : 200
     const y = 130 - ((p - min) / range) * 110
     return { x, y, value: p }
   })
@@ -45,10 +50,16 @@ function formatBroj(n) {
         >
           {{ formatBroj(c.value) }}
         </text>
+        <text
+          :x="c.x"
+          y="138"
+          text-anchor="middle"
+          font-size="9"
+          fill="#202020"
+        >
+          {{ labels[i] }}
+        </text>
       </g>
     </svg>
-    <div class="chart-labels">
-      <span v-for="(l, i) in labels" :key="i">{{ l }}</span>
-    </div>
   </div>
 </template>
