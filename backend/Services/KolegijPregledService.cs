@@ -32,6 +32,9 @@ public class KolegijPregledService(AppDbContext db, KolegijRezultatService koleg
                                   select new { s.KorisnikId, ime = u.Ime + " " + u.Prezime })
             .ToDictionaryAsync(x => x.KorisnikId, x => x.ime);
 
+        var sveAktivnosti = aktivnosti;
+        var sveEvidencije = evidencije;
+
         if (pocetak.HasValue)
             aktivnosti = aktivnosti.Where(x => !x.Datum.HasValue || x.Datum >= pocetak).ToList();
 
@@ -61,8 +64,19 @@ public class KolegijPregledService(AppDbContext db, KolegijRezultatService koleg
                     var ev = evZaKolegij.FirstOrDefault(e => e.AktivnostId == a.Id);
                     return (a.MaxBodovi, ev?.Status ?? "ceka_se", ev?.Bodovi);
                 }).ToList();
-                var rezKolegij = kolegijRezultat.Izracunaj(k, stavke);
-                bodovi += rezKolegij.Bodovi;
+                var sveAkts = sveAktivnosti.Where(a => a.KolegijId == kid).ToList();
+                var sveEvZaKolegij = sveEvidencije
+                    .Where(x => x.StudentId == studentId && x.KolegijId == kid)
+                    .ToList();
+                var sveStavke = sveAkts.Select(a =>
+                {
+                    var ev = sveEvZaKolegij.FirstOrDefault(e => e.AktivnostId == a.Id);
+                    return (a.MaxBodovi, ev?.Status ?? "ceka_se", ev?.Bodovi);
+                }).ToList();
+                var rezKolegij = kolegijRezultat.Izracunaj(k, sveStavke);
+                bodovi += stavke
+                    .Where(s => s.Item2 != "ceka_se")
+                    .Sum(s => s.Item3 ?? 0);
                 ects += rezKolegij.EctsOstvareno;
                 ocijenjeneAktivnosti += stavke.Count(s => s.Item2 != "ceka_se");
             }

@@ -127,7 +127,6 @@ watch(razdobljeDana, () => {
         <table class="roster">
           <thead><tr><th>Podatak</th><th>Broj</th></tr></thead>
           <tbody>
-            <tr><td>Aktivnosti sustava ovaj mjesec</td><td>{{ statistika.aktivnostiOvajMjesec }}</td></tr>
             <tr><td>Novih aktivnosti kreirano</td><td>{{ statistika.novihAktivnosti }}</td></tr>
             <tr><td>Novih korisnika dodano</td><td>{{ statistika.novihKorisnika }}</td></tr>
           </tbody>

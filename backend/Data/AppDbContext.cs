@@ -37,7 +37,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<Korisnik>().Property(x => x.LozinkaHash).HasColumnName("lozinka_hash");
         modelBuilder.Entity<Korisnik>().Property(x => x.Uloga).HasColumnName("uloga");
         modelBuilder.Entity<Korisnik>().Property(x => x.MoraPromijenitiLozinku).HasColumnName("mora_promijeniti_lozinku");
-        modelBuilder.Entity<Korisnik>().Property<DateTimeOffset>("kreirano").HasColumnName("kreirano");
+        modelBuilder.Entity<Korisnik>().Property<DateTimeOffset>("kreirano")
+            .HasColumnName("kreirano")
+            .HasDefaultValueSql("now()");
 
         modelBuilder.Entity<Student>().Property(x => x.KorisnikId).HasColumnName("korisnik_id");
         modelBuilder.Entity<Student>().Property(x => x.BrojIndeksa).HasColumnName("broj_indeksa");
@@ -63,7 +65,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<Aktivnost>().Property(x => x.Opis).HasColumnName("opis");
         modelBuilder.Entity<Aktivnost>().Property(x => x.Datum).HasColumnName("datum");
         modelBuilder.Entity<Aktivnost>().Property(x => x.MaxBodovi).HasColumnName("max_bodovi");
-        modelBuilder.Entity<Aktivnost>().Property<DateTimeOffset>("kreirano").HasColumnName("kreirano");
+        modelBuilder.Entity<Aktivnost>().Property<DateTimeOffset>("kreirano")
+            .HasColumnName("kreirano")
+            .HasDefaultValueSql("now()");
         modelBuilder.Entity<Evidencija>().Property(x => x.AktivnostId).HasColumnName("aktivnost_id");
         modelBuilder.Entity<Evidencija>().Property(x => x.StudentId).HasColumnName("student_id");
         modelBuilder.Entity<Evidencija>().Property(x => x.KolegijId).HasColumnName("kolegij_id");
